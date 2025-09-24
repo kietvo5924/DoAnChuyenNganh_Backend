@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::content}, 'Chi tiết Người dùng')}">
+
+<div th:fragment="content">
+  <h2 class="mb-4">Chi tiết Người dùng: <span th:text="${user.fullName}"></span></h2>
+
+  <div class="card">
+    <div class="card-header">
+      Thông tin Tài khoản
+    </div>
+    <div class="card-body">
+      <p><strong>ID:</strong> <span th:text="${user.id}"></span></p>
+      <p><strong>Họ và tên:</strong> <span th:text="${user.fullName}"></span></p>
+      <p><strong>Email:</strong> <span th:text="${user.email}"></span></p>
+      <p><strong>Vai trò hiện tại:</strong> <span class="badge bg-primary" th:text="${user.role}"></span></p>
+      <p><strong>Trạng thái:</strong>
+        <span th:if="${user.locked}" class="badge bg-danger">Đã khóa</span>
+        <span th:unless="${user.locked}" class="badge bg-success">Hoạt động</span>
+      </p>
+    </div>
+  </div>
+
+  <hr class="my-4">
+
+  <h3 class="mb-3">Hành động</h3>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Thay đổi vai trò</h5>
+          <form th:action="@{/admin/users/{id}/role(id=${user.id})}" method="post">
+            <div class="input-group">
+              <select name="newRole" class="form-select">
+                <option th:each="role : ${allRoles}"
+                        th:value="${role}"
+                        th:text="${role}"
+                        th:selected="${role == user.role}"></option>
+              </select>
+              <button type="submit" class="btn btn-primary">Cập nhật</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Trạng thái tài khoản</h5>
+          <form th:action="@{/admin/users/{id}/lock(id=${user.id})}" method="post" th:if="${!user.locked}">
+            <button type="submit" class="btn btn-danger w-100">Khóa tài khoản</button>
+          </form>
+          <form th:action="@{/admin/users/{id}/unlock(id=${user.id})}" method="post" th:if="${user.locked}">
+            <button type="submit" class="btn btn-success w-100">Mở khóa tài khoản</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a th:href="@{/admin/users}" class="btn btn-secondary mt-4">Quay lại danh sách</a>
+</div>
+
+</html>

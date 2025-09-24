@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/public")
 public class HomeController {
 
-    @GetMapping("/health")
+    @GetMapping("/test")
     public String homeCheck() {
         return "API is up and running!";
     }
