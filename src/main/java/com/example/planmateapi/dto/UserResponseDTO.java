@@ -16,9 +16,11 @@ public class UserResponseDTO {
     @Schema(description = "ID duy nhất của người dùng", example = "1")
     private Long id;
 
+    @Schema(description = "Họ và tên đầy đủ", example = "Nguyễn Văn A")
+    private String fullName;
+
     @Schema(description = "Địa chỉ email", example = "nguyenvana@example.com")
     private String email;
-
 
     @Schema(description = "Vai trò của người dùng trong hệ thống", example = "PATIENT")
     private Role role;
@@ -35,6 +37,7 @@ public class UserResponseDTO {
     public static UserResponseDTO fromUser(User user) {
         return UserResponseDTO.builder()
                 .id(user.getId())
+                .fullName(user.getFullName())
                 .email(user.getEmail())
                 .role(user.getRole())
                 .enabled(user.isEnabled())
