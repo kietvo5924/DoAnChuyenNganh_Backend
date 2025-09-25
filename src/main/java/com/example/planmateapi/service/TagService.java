@@ -1,7 +1,6 @@
 package com.example.planmateapi.service;
 
 import com.example.planmateapi.dto.TagDto;
-import com.example.planmateapi.dto.TaskDto;
 import com.example.planmateapi.entity.Tag;
 import com.example.planmateapi.entity.User;
 import com.example.planmateapi.exception.ResourceNotFoundException;

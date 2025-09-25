@@ -1,6 +1,7 @@
 package com.example.planmateapi.controller;
 
-import com.example.planmateapi.dto.TaskDto;
+import com.example.planmateapi.dto.TaskRequestDto;
+import com.example.planmateapi.dto.TaskResponseDto;
 import com.example.planmateapi.service.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,48 +16,45 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Task API")
+@Tag(name = "Unified Task API")
 @SecurityRequirement(name = "bearerAuth")
 public class TaskController {
 
     private final TaskService taskService;
 
-    @Operation(summary = "Tạo một công việc mới trong một lịch cụ thể")
-    @PostMapping("/api/calendars/{calendarId}/tasks")
-    public ResponseEntity<TaskDto.Response> createTask(
-            @PathVariable Long calendarId,
-            @Valid @RequestBody TaskDto.Request request) {
-        TaskDto.Response createdTask = taskService.createTask(calendarId, request);
-        return new ResponseEntity<>(createdTask, HttpStatus.CREATED);
-    }
-
-    @Operation(summary = "Lấy tất cả công việc trong một lịch cụ thể")
+    @Operation(summary = "Lấy tất cả công việc (thường và lặp lại) trong một lịch")
     @GetMapping("/api/calendars/{calendarId}/tasks")
-    public ResponseEntity<List<TaskDto.Response>> getAllTasksInCalendar(@PathVariable Long calendarId) {
-        List<TaskDto.Response> tasks = taskService.getAllTasksInCalendar(calendarId);
+    public ResponseEntity<List<TaskResponseDto>> getAllTasksInCalendar(@PathVariable Long calendarId) {
+        List<TaskResponseDto> tasks = taskService.getAllTasksInCalendar(calendarId);
         return ResponseEntity.ok(tasks);
     }
 
-    @Operation(summary = "Lấy thông tin chi tiết một công việc theo ID")
-    @GetMapping("/api/tasks/{taskId}")
-    public ResponseEntity<TaskDto.Response> getTaskById(@PathVariable Long taskId) {
-        TaskDto.Response task = taskService.getTaskById(taskId);
-        return ResponseEntity.ok(task);
+    @Operation(summary = "Tạo một công việc mới (thường hoặc lặp lại)")
+    @PostMapping("/api/calendars/{calendarId}/tasks")
+    public ResponseEntity<Void> createTask(
+            @PathVariable Long calendarId,
+            @Valid @RequestBody TaskRequestDto request) {
+        taskService.createOrUpdateTask(calendarId, null, request);
+        return new ResponseEntity<>(HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Cập nhật một công việc theo ID")
+    @Operation(summary = "Cập nhật một công việc (có thể chuyển đổi giữa thường và lặp lại)")
     @PutMapping("/api/tasks/{taskId}")
-    public ResponseEntity<TaskDto.Response> updateTask(
+    public ResponseEntity<Void> updateTask(
             @PathVariable Long taskId,
-            @Valid @RequestBody TaskDto.Request request) {
-        TaskDto.Response updatedTask = taskService.updateTask(taskId, request);
-        return ResponseEntity.ok(updatedTask);
+            @RequestParam Long calendarId, // Cần calendarId để xác thực quyền
+            @Valid @RequestBody TaskRequestDto request) {
+        taskService.createOrUpdateTask(calendarId, taskId, request);
+        return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "Xóa một công việc theo ID")
+    @Operation(summary = "Xóa một công việc (thường hoặc lặp lại)")
     @DeleteMapping("/api/tasks/{taskId}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Long taskId) {
-        taskService.deleteTask(taskId);
+    public ResponseEntity<Void> deleteTask(
+            @PathVariable Long taskId,
+            @RequestParam String type // Gửi "SINGLE" hoặc "RECURRING"
+    ) {
+        taskService.deleteTask(taskId, type);
         return ResponseEntity.noContent().build();
     }
 }
