@@ -1,8 +1,10 @@
 package com.example.planmateapi.service;
 
 import com.example.planmateapi.dto.*;
+import com.example.planmateapi.entity.Calendar;
 import com.example.planmateapi.entity.Role;
 import com.example.planmateapi.entity.User;
+import com.example.planmateapi.repository.CalendarRepository;
 import com.example.planmateapi.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthenticationService {
 
     private final UserRepository userRepository;
+    private final CalendarRepository calendarRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -39,6 +42,13 @@ public class AuthenticationService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        Calendar defaultCalendar = new Calendar();
+        defaultCalendar.setName("Lịch của tôi");
+        defaultCalendar.setDescription("Lịch mặc định cho các công việc cá nhân.");
+        defaultCalendar.setOwner(savedUser);
+        defaultCalendar.setDefault(true);
+        calendarRepository.save(defaultCalendar);
 
         String verificationToken = jwtService.generateEmailVerificationToken(savedUser.getUsername());
 

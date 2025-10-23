@@ -1,10 +1,14 @@
 package com.example.planmateapi.service;
 
 import com.example.planmateapi.dto.TagDto;
+import com.example.planmateapi.entity.RecurringTask;
 import com.example.planmateapi.entity.Tag;
+import com.example.planmateapi.entity.Task;
 import com.example.planmateapi.entity.User;
 import com.example.planmateapi.exception.ResourceNotFoundException;
+import com.example.planmateapi.repository.RecurringTaskRepository;
 import com.example.planmateapi.repository.TagRepository;
+import com.example.planmateapi.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -18,6 +22,8 @@ import java.util.stream.Collectors;
 public class TagService {
 
     private final TagRepository tagRepository;
+    private final TaskRepository taskRepository;
+    private final RecurringTaskRepository recurringTaskRepository;
     private final AuthenticationService authenticationService;
 
     @Transactional
@@ -72,6 +78,21 @@ public class TagService {
             throw new AccessDeniedException("Bạn không có quyền xóa nhãn này.");
         }
 
+        // 1. Tìm tất cả các Task thường đang dùng Tag này và gỡ nó ra
+        List<Task> tasks = taskRepository.findByTagsContains(tag);
+        for (Task task : tasks) {
+            task.getTags().remove(tag);
+            taskRepository.save(task);
+        }
+
+        // 2. Làm tương tự cho RecurringTask
+        List<RecurringTask> recurringTasks = recurringTaskRepository.findByTagsContains(tag);
+        for (RecurringTask task : recurringTasks) {
+            task.getTags().remove(tag);
+            recurringTaskRepository.save(task);
+        }
+
+        // 3. Bây giờ mới thực hiện xóa Tag
         tagRepository.delete(tag);
     }
 

@@ -66,6 +66,16 @@ public class CalendarService {
     public void deleteCalendar(Long calendarId) {
         User currentUser = authenticationService.getCurrentAuthenticatedUser();
         Calendar calendar = findAndVerifyOwnership(calendarId, currentUser);
+
+        if (calendar.isDefault()) {
+            throw new IllegalStateException("Không thể xóa lịch mặc định. Vui lòng đặt một lịch khác làm mặc định trước.");
+        }
+
+
+        if (calendarRepository.countByOwnerId(currentUser.getId()) <= 1) {
+            throw new IllegalStateException("Không thể xóa bộ lịch cuối cùng của bạn.");
+        }
+
         calendarRepository.delete(calendar);
     }
 
