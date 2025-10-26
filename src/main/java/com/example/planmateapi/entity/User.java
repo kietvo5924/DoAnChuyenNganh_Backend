@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder
@@ -43,6 +44,9 @@ public class User implements UserDetails {
 
     @Column(nullable = false)
     private boolean locked = false;
+
+    @OneToMany(mappedBy = "sharedWithUser", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<CalendarShare> sharedCalendars;
 
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;

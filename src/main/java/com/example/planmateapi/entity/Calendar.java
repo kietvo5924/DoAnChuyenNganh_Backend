@@ -9,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Entity
@@ -39,6 +40,9 @@ public class Calendar {
 
     @OneToMany(mappedBy = "calendar", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RecurringTask> recurringTasks;
+
+    @OneToMany(mappedBy = "calendar", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<CalendarShare> shares;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
