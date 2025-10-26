@@ -2,15 +2,19 @@ package com.example.planmateapi.service;
 
 import com.example.planmateapi.dto.CalendarDto;
 import com.example.planmateapi.entity.Calendar;
+import com.example.planmateapi.entity.CalendarShare;
+import com.example.planmateapi.entity.PermissionLevel;
 import com.example.planmateapi.entity.User;
 import com.example.planmateapi.exception.ResourceNotFoundException;
 import com.example.planmateapi.repository.CalendarRepository;
+import com.example.planmateapi.repository.CalendarShareRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,6 +23,7 @@ public class CalendarService {
 
     private final CalendarRepository calendarRepository;
     private final AuthenticationService authenticationService;
+    private final CalendarShareRepository calendarShareRepository;
 
     @Transactional
     public CalendarDto.Response createCalendar(CalendarDto.Request request) {
@@ -81,8 +86,12 @@ public class CalendarService {
 
     @Transactional
     public CalendarDto.Response updateCalendar(Long calendarId, CalendarDto.Request request) {
-        User currentUser = authenticationService.getCurrentAuthenticatedUser();
-        Calendar calendar = findAndVerifyOwnership(calendarId, currentUser);
+        if (!hasPermission(calendarId, PermissionLevel.EDIT)) {
+            throw new AccessDeniedException("Bạn không có quyền cập nhật lịch này.");
+        }
+
+        Calendar calendar = calendarRepository.findById(calendarId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + calendarId));
 
         calendar.setName(request.getName());
         calendar.setDescription(request.getDescription());
@@ -91,19 +100,45 @@ public class CalendarService {
         return mapToResponse(updatedCalendar);
     }
 
-    // Hàm helper để bỏ trạng thái default của tất cả calendar của user
-    private void unsetDefaultCalendars(Long userId) {
-        List<Calendar> calendars = calendarRepository.findByOwnerId(userId);
-        calendars.forEach(cal -> cal.setDefault(false));
-        calendarRepository.saveAll(calendars);
-    }
-
     public CalendarDto.Response getCalendarById(Long calendarId) {
-        User currentUser = authenticationService.getCurrentAuthenticatedUser();
-        Calendar calendar = findAndVerifyOwnership(calendarId, currentUser);
+        if (!hasPermission(calendarId, PermissionLevel.VIEW_ONLY)) {
+            throw new AccessDeniedException("Bạn không có quyền xem lịch này.");
+        }
+
+        Calendar calendar = calendarRepository.findById(calendarId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch với ID: " + calendarId));
         return mapToResponse(calendar);
     }
 
+    private boolean hasPermission(Long calendarId, PermissionLevel requiredPermission) {
+        User currentUser = authenticationService.getCurrentAuthenticatedUser();
+
+        Optional<Calendar> calendarOpt = calendarRepository.findById(calendarId);
+        if (calendarOpt.isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy lịch: " + calendarId);
+        }
+        // 1. Kiểm tra nếu là chủ sở hữu
+        if (calendarOpt.get().getOwner().getId().equals(currentUser.getId())) {
+            return true;
+        }
+
+        // 2. Nếu không phải chủ, kiểm tra xem có được chia sẻ không
+        CalendarShare share = calendarShareRepository
+                .findByCalendarIdAndSharedWithUserId(calendarId, currentUser.getId())
+                .orElse(null);
+
+        if (share == null) {
+            return false; // Không được chia sẻ
+        }
+
+        if (requiredPermission == PermissionLevel.VIEW_ONLY) {
+            return true; // Chỉ cần xem (VIEW_ONLY hoặc EDIT đều được)
+        }
+        if (requiredPermission == PermissionLevel.EDIT) {
+            return share.getPermissionLevel() == PermissionLevel.EDIT; // Phải là quyền EDIT
+        }
+        return false;
+    }
 
     // Hàm helper để tìm calendar và xác thực quyền sở hữu
     private Calendar findAndVerifyOwnership(Long calendarId, User user) {
@@ -113,6 +148,13 @@ public class CalendarService {
             throw new AccessDeniedException("Bạn không có quyền truy cập vào lịch này.");
         }
         return calendar;
+    }
+
+    // Hàm helper để bỏ trạng thái default của tất cả calendar của user
+    private void unsetDefaultCalendars(Long userId) {
+        List<Calendar> calendars = calendarRepository.findByOwnerId(userId);
+        calendars.forEach(cal -> cal.setDefault(false));
+        calendarRepository.saveAll(calendars);
     }
 
     private CalendarDto.Response mapToResponse(Calendar calendar) {

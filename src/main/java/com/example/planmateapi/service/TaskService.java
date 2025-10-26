@@ -4,6 +4,7 @@ import com.example.planmateapi.dto.TagDto;
 import com.example.planmateapi.dto.TaskRequestDto;
 import com.example.planmateapi.dto.TaskResponseDto;
 import com.example.planmateapi.entity.*;
+import com.example.planmateapi.entity.Calendar;
 import com.example.planmateapi.exception.ResourceNotFoundException;
 import com.example.planmateapi.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,17 +24,20 @@ public class TaskService {
     private final CalendarRepository calendarRepository;
     private final TagRepository tagRepository;
     private final AuthenticationService authenticationService;
+    private final CalendarShareRepository calendarShareRepository;
 
     @Transactional
     public void createOrUpdateTask(Long calendarId, Long taskId, TaskRequestDto request) {
+        // SỬA LOGIC KIỂM TRA QUYỀN:
+        if (!hasPermission(calendarId, PermissionLevel.EDIT)) {
+            throw new AccessDeniedException("Bạn không có quyền thêm hoặc sửa công việc trong lịch này.");
+        }
+
         User currentUser = authenticationService.getCurrentAuthenticatedUser();
         Calendar calendar = calendarRepository.findById(calendarId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch: " + calendarId));
 
-        if (!calendar.getOwner().getId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("Bạn không có quyền truy cập vào lịch này.");
-        }
-
+        // (Phần logic còn lại giữ nguyên)
         Set<Tag> tags = new HashSet<>();
         if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
             tags = tagRepository.findByIdIn(request.getTagIds());
@@ -63,7 +64,7 @@ public class TaskService {
             task.setEndTime(request.getEndTime());
             task.setAllDay(request.isAllDay());
             task.setCalendar(calendar);
-            task.setCreatedBy(currentUser);
+            task.setCreatedBy(currentUser); // Vẫn lưu người tạo, nhưng không dùng để check quyền
             task.setTags(tags);
             taskRepository.save(task);
 
@@ -94,7 +95,7 @@ public class TaskService {
             recurringTask.setRepeatDayOfWeek(recurringTask.getRepeatWeekOfMonth());
             recurringTask.setExceptions(request.getExceptions());
             recurringTask.setCalendar(calendar);
-            recurringTask.setCreatedBy(currentUser);
+            recurringTask.setCreatedBy(currentUser); // Vẫn lưu người tạo, nhưng không dùng để check quyền
             recurringTask.setTags(tags);
             recurringTaskRepository.save(recurringTask);
         }
@@ -102,33 +103,49 @@ public class TaskService {
 
     @Transactional
     public void deleteTask(Long taskId, String type) {
-        User currentUser = authenticationService.getCurrentAuthenticatedUser();
+        // --- LOGIC SỬA LỖI CHÍNH Ở ĐÂY ---
+
+        Long calendarId;
+
+        // 1. Tìm task và lấy calendarId của nó
         if ("SINGLE".equalsIgnoreCase(type)) {
             Task task = taskRepository.findById(taskId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc: " + taskId));
-            if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-                throw new AccessDeniedException("Bạn không có quyền xóa công việc này.");
-            }
-            taskRepository.deleteById(taskId);
+            calendarId = task.getCalendar().getId();
+
+            // BỎ KIỂM TRA QUYỀN CŨ (task.getCreatedBy())
+
         } else if ("RECURRING".equalsIgnoreCase(type)) {
             RecurringTask recurringTask = recurringTaskRepository.findById(taskId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc lặp lại: " + taskId));
-            if (!recurringTask.getCreatedBy().getId().equals(currentUser.getId())) {
-                throw new AccessDeniedException("Bạn không có quyền xóa công việc này.");
-            }
-            recurringTaskRepository.deleteById(taskId);
+            calendarId = recurringTask.getCalendar().getId();
+
+            // BỎ KIỂM TRA QUYỀN CŨ (recurringTask.getCreatedBy())
+
         } else {
             throw new IllegalArgumentException("Loại công việc không hợp lệ: " + type);
+        }
+
+        // 2. Kiểm tra quyền trên LỊCH (CALENDAR)
+        if (!hasPermission(calendarId, PermissionLevel.EDIT)) {
+            throw new AccessDeniedException("Bạn không có quyền xóa công việc này.");
+        }
+
+        // 3. Nếu có quyền, tiến hành xóa
+        if ("SINGLE".equalsIgnoreCase(type)) {
+            taskRepository.deleteById(taskId);
+        } else {
+            recurringTaskRepository.deleteById(taskId);
         }
     }
 
     public List<TaskResponseDto> getAllTasksInCalendar(Long calendarId) {
-        User currentUser = authenticationService.getCurrentAuthenticatedUser();
-        Calendar calendar = calendarRepository.findById(calendarId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch: " + calendarId));
-        if (!calendar.getOwner().getId().equals(currentUser.getId())) {
+        // SỬA LOGIC KIỂM TRA QUYỀN:
+        if (!hasPermission(calendarId, PermissionLevel.VIEW_ONLY)) {
             throw new AccessDeniedException("Bạn không có quyền xem lịch này.");
         }
+
+        // (Bỏ các dòng kiểm tra owner cũ)
 
         List<TaskResponseDto> responseList = new ArrayList<>();
 
@@ -183,5 +200,35 @@ public class TaskService {
         return tags.stream()
                 .map(tag -> new TagDto.Response(tag.getId(), tag.getName(), tag.getColor()))
                 .collect(Collectors.toSet());
+    }
+
+    private boolean hasPermission(Long calendarId, PermissionLevel requiredPermission) {
+        User currentUser = authenticationService.getCurrentAuthenticatedUser();
+
+        Optional<Calendar> calendarOpt = calendarRepository.findById(calendarId);
+        if (calendarOpt.isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy lịch: " + calendarId);
+        }
+        // 1. Kiểm tra nếu là chủ sở hữu
+        if (calendarOpt.get().getOwner().getId().equals(currentUser.getId())) {
+            return true;
+        }
+
+        // 2. Nếu không phải chủ, kiểm tra xem có được chia sẻ không
+        CalendarShare share = calendarShareRepository
+                .findByCalendarIdAndSharedWithUserId(calendarId, currentUser.getId())
+                .orElse(null);
+
+        if (share == null) {
+            return false; // Không được chia sẻ
+        }
+
+        if (requiredPermission == PermissionLevel.VIEW_ONLY) {
+            return true; // Chỉ cần xem (VIEW_ONLY hoặc EDIT đều được)
+        }
+        if (requiredPermission == PermissionLevel.EDIT) {
+            return share.getPermissionLevel() == PermissionLevel.EDIT; // Phải là quyền EDIT
+        }
+        return false;
     }
 }
