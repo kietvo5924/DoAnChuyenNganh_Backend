@@ -1,9 +1,7 @@
 package com.example.planmateapi.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -12,7 +10,8 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "recurring_tasks")
 @AllArgsConstructor
@@ -65,6 +64,9 @@ public class RecurringTask {
 
     @Column(columnDefinition = "TEXT")
     private String exceptions;
+
+    @Column(name = "pre_day_notify", nullable = false)
+    private boolean preDayNotify = false;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

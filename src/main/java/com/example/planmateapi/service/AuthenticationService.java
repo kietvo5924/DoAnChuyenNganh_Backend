@@ -54,9 +54,9 @@ public class AuthenticationService {
 
         String verificationLink = "http://localhost:8080/api/auth/verify?token=" + verificationToken;
         String emailBody = String.format("""
-            <h1>Cảm ơn bạn đã đăng ký tài khoản tại Bệnh viện Nhi Đồng II!</h1>
+            <h1>Cảm ơn bạn đã đăng ký tài khoản tại Planmate!</h1>
             <p>Vui lòng nhấp vào link sau để xác thực tài khoản của bạn (link có hiệu lực trong 15 phút):</p>
-            <a href="%s" style="padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Xác thực tài khoản</a>
+            <a href="%s" style="display: inline-block; padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Xác thực tài khoản</a>
             """, verificationLink);
 
         emailService.sendVerificationEmail(savedUser.getEmail(), "Xác thực tài khoản", emailBody);

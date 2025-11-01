@@ -45,8 +45,8 @@ public class CalendarShareController {
 
     // Lấy danh sách lịch được chia sẻ VỚI TÔI
     @GetMapping("/shared-with-me")
-    public ResponseEntity<List<CalendarDto.Response>> getCalendarsSharedWithMe() {
-        List<CalendarDto.Response> calendars = calendarShareService.getCalendarsSharedWithMe();
+    public ResponseEntity<List<SharedCalendarResponseDto>> getCalendarsSharedWithMe() {
+        List<SharedCalendarResponseDto> calendars = calendarShareService.getCalendarsSharedWithMe();
         return ResponseEntity.ok(calendars);
     }
 }

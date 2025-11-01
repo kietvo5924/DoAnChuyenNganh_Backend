@@ -66,6 +66,7 @@ public class TaskService {
             task.setCalendar(calendar);
             task.setCreatedBy(currentUser); // Vẫn lưu người tạo, nhưng không dùng để check quyền
             task.setTags(tags);
+            task.setPreDayNotify(request.isPreDayNotify());
             taskRepository.save(task);
 
         } else {
@@ -97,6 +98,7 @@ public class TaskService {
             recurringTask.setCalendar(calendar);
             recurringTask.setCreatedBy(currentUser); // Vẫn lưu người tạo, nhưng không dùng để check quyền
             recurringTask.setTags(tags);
+            recurringTask.setPreDayNotify(request.isPreDayNotify());
             recurringTaskRepository.save(recurringTask);
         }
     }
@@ -171,6 +173,7 @@ public class TaskService {
                 .endTime(task.getEndTime())
                 .isAllDay(task.isAllDay())
                 .tags(mapTagsToDto(task.getTags()))
+                .preDayNotify(task.isPreDayNotify())
                 .build();
     }
 
@@ -192,6 +195,7 @@ public class TaskService {
                 .repeatDayOfWeek(task.getRepeatDayOfWeek())
                 .exceptions(task.getExceptions())
                 .tags(mapTagsToDto(task.getTags()))
+                .preDayNotify(task.isPreDayNotify())
                 .build();
     }
 
