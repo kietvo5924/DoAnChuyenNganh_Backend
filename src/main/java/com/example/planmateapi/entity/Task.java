@@ -1,16 +1,15 @@
 package com.example.planmateapi.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
 import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "tasks")
 @AllArgsConstructor
@@ -35,6 +34,9 @@ public class Task {
 
     @Column(name = "is_all_day", nullable = false)
     private boolean isAllDay = false;
+
+    @Column(name = "pre_day_notify", nullable = false)
+    private boolean preDayNotify = false;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

@@ -37,4 +37,5 @@ public class TaskResponseDto {
     private LocalDate repeatStart;
     private LocalDate repeatEnd;
     private String exceptions;
+    private boolean preDayNotify;
 }

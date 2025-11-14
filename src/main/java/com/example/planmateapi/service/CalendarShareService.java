@@ -73,11 +73,13 @@ public class CalendarShareService {
     }
 
     // Lấy danh sách lịch ĐƯỢC CHIA SẺ VỚI TÔI
-    public List<CalendarDto.Response> getCalendarsSharedWithMe() {
+    public List<SharedCalendarResponseDto> getCalendarsSharedWithMe() {
         User currentUser = authenticationService.getCurrentAuthenticatedUser();
         List<CalendarShare> shares = calendarShareRepository.findBySharedWithUserId(currentUser.getId());
+
+        // SỬA LẠI LOGIC MAP
         return shares.stream()
-                .map(share -> mapToCalendarResponse(share.getCalendar()))
+                .map(share -> SharedCalendarResponseDto.from(share.getCalendar(), share.getPermissionLevel()))
                 .collect(Collectors.toList());
     }
 
