@@ -1,5 +1,6 @@
 package com.example.planmateapi.service;
 
+import com.example.planmateapi.dto.CreateTaskResponseDto;
 import com.example.planmateapi.dto.TagDto;
 import com.example.planmateapi.dto.TaskRequestDto;
 import com.example.planmateapi.dto.TaskResponseDto;
@@ -12,6 +13,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -234,5 +239,83 @@ public class TaskService {
             return share.getPermissionLevel() == PermissionLevel.EDIT; // Phải là quyền EDIT
         }
         return false;
+    }
+
+    /**
+     * Phương thức này được thiết kế riêng cho AI gọi.
+     * Nó sẽ tự động tìm lịch mặc định của người dùng và tạo một công việc MỚI.
+     */
+    @Transactional
+    public CreateTaskResponseDto createSingleTaskFromAi(String title, OffsetDateTime startTime, OffsetDateTime endTime, boolean preDayNotify) {
+        User currentUser = authenticationService.getCurrentAuthenticatedUser();
+
+        // 1. Tìm lịch (calendar) mặc định của người dùng
+        Calendar defaultCalendar = calendarRepository.findByOwnerId(currentUser.getId())
+                .stream()
+                .filter(Calendar::isDefault)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Không tìm thấy lịch mặc định để thêm công việc."));
+
+        // 2. Tạo TaskRequestDto để gọi lại hàm createOrUpdateTask
+        TaskRequestDto request = new TaskRequestDto();
+        request.setTitle(title);
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+        request.setRepeatType(RepeatType.NONE); // AI mặc định tạo task đơn
+        request.setAllDay(false);
+        request.setPreDayNotify(preDayNotify);
+
+        // 3. Gọi hàm nghiệp vụ chính (đã có sẵn)
+        // Chúng ta truyền null cho taskId để đảm bảo đây là lệnh TẠO MỚI
+        createOrUpdateTask(defaultCalendar.getId(), null, request);
+
+        // 4. Trả về DTO xác nhận
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM");
+        String message = String.format("Đã đặt lịch '%s' trên lịch '%s' vào lúc %s.",
+                title,
+                defaultCalendar.getName(),
+                startTime.format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM"))
+        );
+
+        return new CreateTaskResponseDto(true, message, title, startTime, defaultCalendar.getName());
+    }
+
+    @Transactional
+    public CreateTaskResponseDto createRecurringTaskFromAi(
+            String title, RepeatType repeatType, LocalTime startTime, LocalTime endTime,
+            LocalDate startDate, String repeatDays, int repeatInterval, boolean preDayNotify
+    ) {
+        User currentUser = authenticationService.getCurrentAuthenticatedUser();
+
+        // 1. Tìm lịch default
+        Calendar defaultCalendar = calendarRepository.findByOwnerId(currentUser.getId())
+                .stream()
+                .filter(Calendar::isDefault)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Không tìm thấy lịch mặc định."));
+
+        // 2. Xây dựng request cho hàm nghiệp vụ chính
+        TaskRequestDto request = new TaskRequestDto();
+        request.setTitle(title);
+        request.setRepeatType(repeatType);
+        request.setRepeatStartTime(startTime);
+        request.setRepeatEndTime(endTime);
+        request.setRepeatStart(startDate);
+        request.setRepeatInterval(repeatInterval);
+        request.setRepeatDays(repeatDays); // "MO,TU,WE"
+        request.setTimezone("Asia/Ho_Chi_Minh"); // Hoặc lấy từ user profile nếu có
+        request.setPreDayNotify(preDayNotify);
+
+        // 3. Gọi hàm nghiệp vụ chính
+        createOrUpdateTask(defaultCalendar.getId(), null, request);
+
+        // 4. Trả về xác nhận
+        String message = String.format("Đã tạo lịch lặp lại '%s' trên lịch '%s' (bắt đầu từ %s).",
+                title,
+                defaultCalendar.getName(),
+                startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        );
+
+        return new CreateTaskResponseDto(true, message, title, null, defaultCalendar.getName());
     }
 }
