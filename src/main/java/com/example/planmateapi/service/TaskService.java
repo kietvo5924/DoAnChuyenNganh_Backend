@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -317,5 +318,122 @@ public class TaskService {
         );
 
         return new CreateTaskResponseDto(true, message, title, null, defaultCalendar.getName());
+    }
+
+    // 1. Hàm tìm kiếm để AI xác nhận với người dùng
+    @Transactional(readOnly = true)
+    public String findTasksForAi(String keyword) {
+        User currentUser = authenticationService.getCurrentAuthenticatedUser();
+
+        // Lấy tất cả lịch của User
+        List<Long> calendarIds = calendarRepository.findByOwnerId(currentUser.getId())
+                .stream()
+                .map(Calendar::getId)
+                .toList();
+
+        if (calendarIds.isEmpty()) return "Bạn chưa có lịch nào.";
+
+        List<String> results = new ArrayList<>();
+        ZoneOffset vietnamOffset = ZoneOffset.of("+07:00");
+
+        boolean foundAny = false;
+
+        // --- 1. TÌM TRONG BẢNG RECURRING TASK (Ưu tiên số 1) ---
+        for (Long calId : calendarIds) {
+            List<RecurringTask> rTasks = recurringTaskRepository.findByCalendarIdAndTitleContainingIgnoreCase(calId, keyword);
+            for (RecurringTask rt : rTasks) {
+                foundAny = true;
+                // FIX: Thêm hiển thị rt.getRepeatDays() để biết lặp vào thứ mấy (VD: "SA,SU")
+                String repeatInfo = String.format("%s (Lặp vào: %s)", rt.getRepeatType(), rt.getRepeatDays() != null ? rt.getRepeatDays() : "Hàng ngày");
+
+                results.add(String.format("[ID: %d | LOẠI: RECURRING] - %s \n   -> Chi tiết: %s lúc %s",
+                        rt.getId(), rt.getTitle(), repeatInfo, rt.getStartTime()));
+            }
+        }
+
+        // --- 2. TÌM TRONG BẢNG TASK THƯỜNG ---
+        for (Long calId : calendarIds) {
+            List<Task> tasks = taskRepository.findByCalendarIdAndTitleContainingIgnoreCase(calId, keyword);
+            for (Task t : tasks) {
+                foundAny = true;
+                String timeStr = t.getStartTime()
+                        .withOffsetSameInstant(vietnamOffset)
+                        .format(DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy"));
+
+                results.add(String.format("[ID: %d | LOẠI: SINGLE] - %s (Diễn ra lúc: %s)",
+                        t.getId(), t.getTitle(), timeStr));
+            }
+        }
+
+        if (!foundAny) {
+            return "Không tìm thấy công việc nào có tên chứa '" + keyword + "'.";
+        }
+
+        return String.join("\n", results);
+    }
+
+    // 2. Hàm xóa (AI gọi sau khi user confirm)
+    @Transactional
+    public String deleteTaskFromAi(Long id, String type) {
+        try {
+            deleteTask(id, type); // Gọi lại hàm deleteTask có sẵn của bạn (đã có check quyền)
+            return "Đã xóa thành công công việc ID " + id;
+        } catch (Exception e) {
+            return "Lỗi khi xóa: " + e.getMessage();
+        }
+    }
+
+    // 3. Hàm sửa (AI gọi sau khi user confirm) - Chỉ cho sửa Title và Thời gian đơn giản
+    @Transactional
+    public String editAnyTaskFromAi(Long id, String type, String newTitle, String newStartTimeISO, String newEndTimeISO) {
+        try {
+            User currentUser = authenticationService.getCurrentAuthenticatedUser();
+
+            if ("SINGLE".equalsIgnoreCase(type)) {
+                // --- XỬ LÝ TASK THƯỜNG (Logic cũ) ---
+                Task task = taskRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Task thường ID " + id));
+
+                if (!task.getCalendar().getOwner().getId().equals(currentUser.getId())) {
+                    return "Bạn không có quyền sửa task này.";
+                }
+
+                if (newTitle != null && !newTitle.isEmpty()) task.setTitle(newTitle);
+                // Parse ISO 8601 đầy đủ (VD: 2025-11-20T09:00:00+07:00)
+                if (newStartTimeISO != null) task.setStartTime(OffsetDateTime.parse(newStartTimeISO));
+                if (newEndTimeISO != null) task.setEndTime(OffsetDateTime.parse(newEndTimeISO));
+
+                taskRepository.save(task);
+                return "Đã cập nhật công việc thường thành công.";
+
+            } else if ("RECURRING".equalsIgnoreCase(type)) {
+                // --- XỬ LÝ TASK LẶP (Logic mới bổ sung) ---
+                RecurringTask rTask = recurringTaskRepository.findById(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Task lặp ID " + id));
+
+                if (!rTask.getCalendar().getOwner().getId().equals(currentUser.getId())) {
+                    return "Bạn không có quyền sửa task này.";
+                }
+
+                if (newTitle != null && !newTitle.isEmpty()) rTask.setTitle(newTitle);
+
+                // Với Task lặp, ta chỉ lấy phần GIỜ (LocalTime) từ chuỗi ISO
+                if (newStartTimeISO != null) {
+                    OffsetDateTime odt = OffsetDateTime.parse(newStartTimeISO);
+                    rTask.setStartTime(odt.toLocalTime()); // Lấy 09:00:00
+                }
+                if (newEndTimeISO != null) {
+                    OffsetDateTime odt = OffsetDateTime.parse(newEndTimeISO);
+                    rTask.setEndTime(odt.toLocalTime()); // Lấy 10:00:00
+                }
+
+                recurringTaskRepository.save(rTask);
+                return "Đã cập nhật lịch lặp lại thành công (đã đổi giờ/tên cho toàn bộ chuỗi lặp).";
+            } else {
+                return "Loại task không hợp lệ (phải là SINGLE hoặc RECURRING).";
+            }
+        } catch (Exception e) {
+            return "Lỗi khi sửa: " + e.getMessage();
+        }
     }
 }

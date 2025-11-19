@@ -11,4 +11,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByCalendarId(Long calendarId);
 
     List<Task> findByTagsContains(Tag tag);
+
+    // Tìm task thường theo lịch và tên (tương đối)
+    List<Task> findByCalendarIdAndTitleContainingIgnoreCase(Long calendarId, String title);
 }

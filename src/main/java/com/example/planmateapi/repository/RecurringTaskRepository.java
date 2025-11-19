@@ -11,4 +11,7 @@ public interface RecurringTaskRepository extends JpaRepository<RecurringTask, Lo
     List<RecurringTask> findByCalendarId(Long calendarId);
 
     List<RecurringTask> findByTagsContains(Tag tag);
+
+    // Tìm task lặp lại theo lịch và tên (tương đối)
+    List<RecurringTask> findByCalendarIdAndTitleContainingIgnoreCase(Long calendarId, String title);
 }

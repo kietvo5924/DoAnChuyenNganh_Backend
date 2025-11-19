@@ -127,4 +127,45 @@ public class AiConfig {
             }
         };
     }
+
+    public record FindTaskFunctionRequest(
+            @JsonPropertyDescription("Từ khóa tìm kiếm (tên công việc)") String keyword
+    ) {}
+
+    public record DeleteTaskFunctionRequest(
+            @JsonPropertyDescription("ID của công việc cần xóa") Long id,
+            @JsonPropertyDescription("Loại công việc: 'SINGLE' hoặc 'RECURRING'") String type
+    ) {}
+
+    public record EditTaskFunctionRequest(
+            @JsonPropertyDescription("ID của công việc") Long id,
+            @JsonPropertyDescription("Loại công việc: 'SINGLE' hoặc 'RECURRING' (Lấy từ kết quả tìm kiếm)") String type,
+            @JsonPropertyDescription("Tiêu đề mới (nếu có)") String title,
+            @JsonPropertyDescription("Thời gian bắt đầu mới (ISO 8601) (nếu có)") String startTime,
+            @JsonPropertyDescription("Thời gian kết thúc mới (ISO 8601) (nếu có)") String endTime
+    ) {}
+
+    @Bean
+    @Description("Tìm kiếm công việc để lấy ID và thông tin chi tiết trước khi sửa hoặc xóa.")
+    public Function<FindTaskFunctionRequest, String> findTaskFunction(TaskService taskService) {
+        return (request) -> taskService.findTasksForAi(request.keyword());
+    }
+
+    @Bean
+    @Description("Xóa một công việc khi đã có ID.")
+    public Function<DeleteTaskFunctionRequest, String> deleteTaskFunction(TaskService taskService) {
+        return (request) -> taskService.deleteTaskFromAi(request.id(), request.type());
+    }
+
+    @Bean
+    @Description("Sửa một công việc (Thường hoặc Lặp lại) khi đã có ID và Type.")
+    public Function<EditTaskFunctionRequest, String> editTaskFunction(TaskService taskService) {
+        return (request) -> taskService.editAnyTaskFromAi(
+                request.id(),
+                request.type(), // Truyền type vào
+                request.title(),
+                request.startTime(),
+                request.endTime()
+        );
+    }
 }

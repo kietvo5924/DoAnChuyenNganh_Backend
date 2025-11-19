@@ -9,6 +9,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Function;
@@ -31,16 +32,24 @@ public class ChatService {
     private final Function<AiConfig.AvailabilityFunctionRequest, AvailabilityResponseDto> checkAvailabilityFunction;
     private final Function<AiConfig.CreateSingleTaskFunctionRequest, CreateTaskResponseDto> createSingleTaskFunction;
     private final Function<AiConfig.CreateRecurringTaskFunctionRequest, CreateTaskResponseDto> createRecurringTaskFunction;
+    private final Function<AiConfig.FindTaskFunctionRequest, String> findTaskFunction;
+    private final Function<AiConfig.DeleteTaskFunctionRequest, String> deleteTaskFunction;
+    private final Function<AiConfig.EditTaskFunctionRequest, String> editTaskFunction;
 
     public ChatService(ChatClient.Builder chatClientBuilder,
                        Function<AiConfig.AvailabilityFunctionRequest, AvailabilityResponseDto> checkAvailabilityFunction,
                        Function<AiConfig.CreateSingleTaskFunctionRequest, CreateTaskResponseDto> createSingleTaskFunction,
-                       Function<AiConfig.CreateRecurringTaskFunctionRequest, CreateTaskResponseDto> createRecurringTaskFunction
+                       Function<AiConfig.CreateRecurringTaskFunctionRequest, CreateTaskResponseDto> createRecurringTaskFunction,
+                       Function<AiConfig.FindTaskFunctionRequest, String> findTaskFunction,
+                       Function<AiConfig.DeleteTaskFunctionRequest, String> deleteTaskFunction,
+                       Function<AiConfig.EditTaskFunctionRequest, String> editTaskFunction
     ) {
-        this.chatClient = chatClientBuilder
-                .defaultSystem("""
+        String today = LocalDate.now().toString();
+
+        String systemPrompt = """
                     Bạn là trợ lý lịch cá nhân chuyên nghiệp.
-                    NGÀY HIỆN TẠI CỦA HỆ THỐNG: 2025-11-15
+                    NGÀY HIỆN TẠI CỦA HỆ THỐNG: %s
+                    
                     QUY TẮC:
                     1. Bất kỳ câu hỏi nào liên quan đến lịch, rảnh/bận, giờ giấc, PHẢI gọi function: checkAvailabilityFunction(startTime, endTime).
                     2. Khi người dùng muốn tạo lịch hẹn ĐƠN LẺ, PHẢI gọi: createSingleTaskFunction(title, startTime, endTime, preDayNotify).
@@ -58,6 +67,15 @@ public class ChatService {
                        - PHẢI là null (chính xác là chữ 'null', KHÔNG có dấu nháy) cho DAILY hoặc MONTHLY.
                     3. repeatInterval (tham số thứ 7): PHẢI là một số. Mặc định là 1.
                     4. preDayNotify (tham số thứ 8): PHẢI là true hoặc false. Mặc định là false.
+                    
+                    QUY TẮC BẮT BUỘC (VỀ SỬA VÀ XÓA):
+                    1. Khi người dùng yêu cầu SỬA hoặc XÓA, TUYỆT ĐỐI KHÔNG làm ngay.
+                    2. Bước 1: PHẢI gọi hàm tìm kiếm: findTaskFunction(keyword) để lấy danh sách task.
+                    3. Bước 2: Trả về danh sách task tìm được (kèm ID và LOẠI) cho người dùng xem và hỏi: "Bạn muốn xóa/sửa task nào? Vui lòng xác nhận ID."
+                    4. Bước 3: CHỈ KHI người dùng cung cấp ID hoặc xác nhận rõ ràng, mới gọi hàm:
+                       - Xóa: deleteTaskFunction(id, type)
+                       - Sửa: editTaskFunction(id, type, newTitle, newStartTime, newEndTime)
+                       * LƯU Ý QUAN TRỌNG: Tham số 'type' (SINGLE hoặc RECURRING) là BẮT BUỘC trong hàm sửa/xóa, hãy lấy nó chính xác từ kết quả tìm kiếm ở Bước 2.
 
                     FORMATS:
                     ISO 8601 (cho task đơn): 2025-11-16T15:00:00+07:00
@@ -83,12 +101,34 @@ public class ChatService {
                     VÍ DỤ TASK LẶP (THỬ THÁCH):
                     User: Tạo lịch 'Tổng kết' 4h chiều T7, CN, 2 tuần 1 lần, bắt đầu từ tuần này, có báo trước.
                     AI: createRecurringTaskFunction("Tổng kết", "WEEKLY", "16:00", "17:00", "2025-11-15", "SA,SU", 2, true)
-                    """)
+                    
+                    VÍ DỤ LUỒNG XÓA:
+                    User: Xóa lịch đi bơi chiều mai.
+                    AI: findTaskFunction("đi bơi")
+                    (Hệ thống trả về: "[ID: 50 | LOẠI: SINGLE] - Đi bơi (Lúc: 17:00)")
+                    AI: Tôi tìm thấy lịch "Đi bơi" lúc 17:00 mai (ID: 50). Bạn có chắc muốn xóa không?
+                    User: Đúng rồi xóa đi.
+                    AI: deleteTaskFunction(50, "SINGLE")
+                    
+                    VÍ DỤ LUỒNG SỬA (TASK LẶP):
+                    User: Đổi giờ họp team thành 10h sáng.
+                    AI: findTaskFunction("họp team")
+                    (Hệ thống trả về: "[ID: 88 | LOẠI: RECURRING] - Họp team (Lúc: 09:00)")
+                    AI: Tìm thấy lịch 'Họp team' (ID: 88, Loại: RECURRING). Bạn muốn sửa nó đúng không?
+                    User: Đúng rồi sửa ID 88 đi.
+                    AI: editTaskFunction(88, "RECURRING", null, "2025-11-19T10:00:00+07:00", null)
+                    """.formatted(today);
+
+                this.chatClient = chatClientBuilder
+                        .defaultSystem(systemPrompt)
                 .build();
 
         this.checkAvailabilityFunction = checkAvailabilityFunction;
         this.createSingleTaskFunction = createSingleTaskFunction;
         this.createRecurringTaskFunction = createRecurringTaskFunction;
+        this.findTaskFunction = findTaskFunction;
+        this.deleteTaskFunction = deleteTaskFunction;
+        this.editTaskFunction = editTaskFunction;
     }
 
     public String chat(ChatRequest request) {
@@ -286,6 +326,83 @@ public class ChatService {
                 log.error("Lỗi khi parse createRecurringTaskFunction: {}", e.getMessage(), e);
                 // Thêm chi tiết AI trả về vào lỗi để debug
                 return "Lỗi: Không thể xử lý function call (create recurring): " + aiText;
+            }
+        }
+
+        // KHỐI 4: TÌM KIẾM TASK (findTaskFunction)
+        else if (aiText.toLowerCase().startsWith("findtaskfunction(")) {
+            try {
+                Pattern p = Pattern.compile("findTaskFunction\\s*\\(\\s*\"(.*?)\"\\s*\\)", Pattern.CASE_INSENSITIVE);
+                Matcher m = p.matcher(aiText);
+                if (m.find()) {
+                    String keyword = m.group(1);
+                    // Gọi hàm và trả về kết quả thô để AI đọc và trả lời user
+                    String foundTasks = findTaskFunction.apply(new AiConfig.FindTaskFunctionRequest(keyword));
+
+                    // Mẹo: Gửi lại kết quả này vào ngữ cảnh chat để AI tiếp tục hội thoại
+                    // Tuy nhiên với kiến trúc hiện tại, ta return luôn chuỗi này kèm lời dẫn cho AI (hoặc return chuỗi để user đọc).
+                    // Cách tốt nhất ở đây: Return string để User thấy.
+                    return "Tôi tìm thấy các công việc sau:\n" + foundTasks + "\n\nBạn muốn thao tác với ID nào?";
+                }
+            } catch (Exception e) {
+                return "Lỗi tìm kiếm.";
+            }
+        }
+
+        // KHỐI 5: XÓA TASK (deleteTaskFunction)
+        else if (aiText.toLowerCase().startsWith("deletetaskfunction(")) {
+            try {
+                Pattern p = Pattern.compile("deleteTaskFunction\\s*\\(\\s*(\\d+)\\s*,\\s*\"(SINGLE|RECURRING)\"\\s*\\)", Pattern.CASE_INSENSITIVE);
+                Matcher m = p.matcher(aiText);
+                if (m.find()) {
+                    Long id = Long.parseLong(m.group(1));
+                    String type = m.group(2).toUpperCase();
+                    return deleteTaskFunction.apply(new AiConfig.DeleteTaskFunctionRequest(id, type));
+                }
+            } catch (Exception e) {
+                return "Lỗi cú pháp lệnh xóa.";
+            }
+        }
+
+        // KHỐI 6: SỬA TASK (editTaskFunction) - Đã cập nhật cho Recurring
+        else if (aiText.toLowerCase().startsWith("edittaskfunction(")) {
+            try {
+                // Regex bắt 5 tham số: id, type, title, start, end
+                // VD: editTaskFunction(50, "SINGLE", "Tên mới", null, null)
+                Pattern p = Pattern.compile(
+                        """
+                       editTaskFunction\\s*\\(\\s*
+                       (\\d+)\\s*,\\s* # 1. ID
+                       \"(SINGLE|RECURRING)\"\\s*,\\s* # 2. Type
+                       (?:\"(.*?)\"|null)\\s*,\\s* # 3. Title
+                       (?:\"(.*?)\"|null)\\s*,\\s* # 4. StartTime
+                       (?:\"(.*?)\"|null)          # 5. EndTime
+                       \\s*\\)
+                       """,
+                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL | Pattern.COMMENTS
+                );
+
+                Matcher m = p.matcher(aiText);
+                if (m.find()) {
+                    Long id = Long.parseLong(m.group(1));
+                    String type = m.group(2).toUpperCase();
+                    String title = m.group(3);
+                    String start = m.group(4);
+                    String end = m.group(5);
+
+                    if (start != null) start = normalizeAndAddTimezone(start);
+                    if (end != null) end = normalizeAndAddTimezone(end);
+
+                    AiConfig.EditTaskFunctionRequest funcRequest =
+                            new AiConfig.EditTaskFunctionRequest(id, type, title, start, end);
+
+                    return editTaskFunction.apply(funcRequest);
+                } else {
+                    return "Lỗi cú pháp lệnh sửa (Kiểm tra xem AI có gửi đúng loại SINGLE/RECURRING không).";
+                }
+            } catch (Exception e) {
+                log.error("Lỗi regex edit: {}", e.getMessage());
+                return "Lỗi xử lý lệnh sửa.";
             }
         }
 
