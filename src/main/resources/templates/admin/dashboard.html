@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<div th:fragment="content">
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="mb-1">Trang thống kê</h2>
+      <p class="text-muted mb-0">Theo dõi sức khỏe ứng dụng theo thời gian thực</p>
+    </div>
+    <div class="text-end">
+      <span class="badge bg-primary">Cập nhật theo thời gian thực</span>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Đăng ký mới (7 ngày)</p>
+          <h3 th:text="${analytics.weeklyNewUsers}"></h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Đăng ký mới (4 tuần)</p>
+          <h3 th:text="${analytics.monthlyNewUsers}"></h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Công việc mới (7 ngày)</p>
+          <h3 th:text="${analytics.tasksCreatedThisWeek}"></h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Công việc mới (4 tuần)</p>
+          <h3 th:text="${analytics.tasksCreatedThisMonth}"></h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-transparent fw-bold">Đăng ký mới 7 ngày</div>
+        <div class="card-body">
+          <canvas id="weeklyUsersChart" height="280"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-transparent fw-bold">Đăng ký mới theo tuần</div>
+        <div class="card-body">
+          <canvas id="monthlyUsersChart" height="280"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-transparent fw-bold">Công việc tạo mới</div>
+        <div class="card-body">
+          <canvas id="tasksCreatedChart" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-transparent fw-bold">Tình trạng xử lý báo cáo</div>
+        <div class="card-body">
+          <div class="d-flex align-items-center mb-3">
+            <div>
+              <p class="text-muted mb-1">Báo cáo đang chờ</p>
+              <h4 class="text-warning" th:text="${analytics.pendingReports}"></h4>
+            </div>
+          </div>
+          <canvas id="reportStatusChart" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script th:inline="javascript">
+    const weeklyUserLabels = [[${weeklyUserLabels}]];
+    const weeklyUserData = [[${weeklyUserData}]];
+    const monthlyUserLabels = [[${monthlyUserLabels}]];
+    const monthlyUserData = [[${monthlyUserData}]];
+    const tasksCreatedLabels = [[${tasksCreatedLabels}]];
+    const tasksCreatedData = [[${tasksCreatedData}]];
+    const reportStatusLabels = [[${reportStatusLabels}]];
+    const reportStatusData = [[${reportStatusData}]];
+
+    const lineConfig = (ctx, labels, data, color) => new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          borderColor: color,
+          backgroundColor: color,
+          tension: 0.4,
+          fill: false,
+          pointRadius: 4,
+          pointBackgroundColor: '#fff',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        }
+      }
+    });
+
+    lineConfig(document.getElementById('weeklyUsersChart'), weeklyUserLabels, weeklyUserData, '#0d6efd');
+    lineConfig(document.getElementById('monthlyUsersChart'), monthlyUserLabels, monthlyUserData, '#20c997');
+
+    new Chart(document.getElementById('tasksCreatedChart'), {
+      type: 'bar',
+      data: {
+        labels: tasksCreatedLabels,
+        datasets: [{
+          data: tasksCreatedData,
+          backgroundColor: ['#0d6efd', '#6f42c1']
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+
+    new Chart(document.getElementById('reportStatusChart'), {
+      type: 'doughnut',
+      data: {
+        labels: reportStatusLabels,
+        datasets: [{
+          data: reportStatusData,
+          backgroundColor: ['#ffc107', '#0dcaf0', '#6c757d', '#20c997']
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+  </script>
+</div>
+</html>

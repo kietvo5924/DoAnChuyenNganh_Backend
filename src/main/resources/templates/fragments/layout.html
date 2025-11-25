@@ -12,7 +12,13 @@
     <div class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item" sec:authorize="hasRole('ADMIN')">
-          <a class="nav-link" th:href="@{/admin/users}">Quản lý Người dùng</a>
+          <a class="nav-link" th:href="@{/admin/dashboard}" th:classappend="${activeMenu} == 'dashboard' ? ' active' : ''">Thống kê</a>
+        </li>
+        <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+          <a class="nav-link" th:href="@{/admin/users}" th:classappend="${activeMenu} == 'users' ? ' active' : ''">Quản lý Người dùng</a>
+        </li>
+        <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+          <a class="nav-link" th:href="@{/admin/reports}" th:classappend="${activeMenu} == 'reports' ? ' active' : ''">Báo cáo vi phạm</a>
         </li>
       </ul>
       <div sec:authorize="isAuthenticated()">

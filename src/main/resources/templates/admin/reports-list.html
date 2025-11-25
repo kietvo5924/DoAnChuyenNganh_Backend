@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<div th:fragment="content">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="mb-0">Báo cáo vi phạm</h2>
+      <p class="text-muted mb-0">Danh sách các lịch bị người dùng báo cáo.</p>
+    </div>
+  </div>
+
+  <div th:if="${successMessage}" class="alert alert-success" th:text="${successMessage}"></div>
+  <div th:if="${errorMessage}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+  <div class="card shadow-sm">
+    <div class="card-body table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Lịch</th>
+          <th>Người sở hữu</th>
+          <th>Người báo cáo</th>
+          <th>Lý do</th>
+          <th>Trạng thái</th>
+          <th>Thời gian</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="report : ${reports}">
+          <td th:text="${report.id}"></td>
+          <td>
+            <div class="fw-semibold" th:text="${report.calendarName}"></div>
+            <small class="text-muted" th:text="'ID: ' + ${report.calendarId}"></small>
+          </td>
+          <td>
+            <div th:text="${report.reportedUserName}"></div>
+            <small class="text-muted" th:text="${report.reportedUserEmail}"></small>
+          </td>
+          <td>
+            <div th:text="${report.reporterName}"></div>
+            <small class="text-muted" th:text="${report.reporterEmail}"></small>
+          </td>
+          <td th:text="${report.reason}"></td>
+          <td>
+            <span class="badge" th:classappend="${report.status.name()} == 'PENDING' ? ' bg-warning text-dark' :
+                                                  (${report.status.name()} == 'DISMISSED' ? ' bg-secondary' :
+                                                  (${report.status.name()} == 'WARNED' ? ' bg-info text-dark' : ' bg-danger'))"
+                  th:text="${report.status}"></span>
+          </td>
+          <td>
+            <div th:text="${#temporals.format(report.createdAt, 'dd/MM/yyyy HH:mm')}"></div>
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" th:href="@{/admin/reports/{id}(id=${report.id})}">Chi tiết</a>
+          </td>
+        </tr>
+        <tr th:if="${reports.isEmpty()}">
+          <td colspan="8" class="text-center text-muted">Hiện chưa có báo cáo nào.</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</html>

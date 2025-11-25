@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<div th:fragment="content">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="mb-0">Chi tiết báo cáo #<span th:text="${report.id}"></span></h2>
+      <p class="text-muted mb-0">Kiểm tra nội dung và thực hiện hành động phù hợp.</p>
+    </div>
+    <div>
+      <a class="btn btn-outline-secondary" th:href="@{/admin/reports}">Quay lại danh sách</a>
+    </div>
+  </div>
+
+  <div th:if="${successMessage}" class="alert alert-success" th:text="${successMessage}"></div>
+  <div th:if="${errorMessage}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-bold">Thông tin lịch</div>
+        <div class="card-body">
+          <p><strong>Tên lịch:</strong> <span th:text="${report.calendarName}"></span></p>
+          <p><strong>Mô tả:</strong> <span th:text="${report.calendarDescription} ?: 'Không có'"></span></p>
+          <p><strong>Người sở hữu:</strong> <span th:text="${report.reportedUserName}"></span> (<span th:text="${report.reportedUserEmail}"></span>)</p>
+          <p><strong>Người báo cáo:</strong> <span th:text="${report.reporterName}"></span> (<span th:text="${report.reporterEmail}"></span>)</p>
+          <p><strong>Lý do:</strong> <span th:text="${report.reason}"></span></p>
+          <p><strong>Mô tả chi tiết:</strong></p>
+          <div class="bg-light rounded p-3" th:text="${report.description} ?: 'Không có'"></div>
+          <p class="mt-3"><strong>Trạng thái:</strong>
+            <span class="badge" th:classappend="${report.status.name()} == 'PENDING' ? ' bg-warning text-dark' :
+                                                  (${report.status.name()} == 'DISMISSED' ? ' bg-secondary' :
+                                                  (${report.status.name()} == 'WARNED' ? ' bg-info text-dark' : ' bg-danger'))"
+                  th:text="${report.status.name()} == 'PENDING' ? 'Đang chờ xử lý' :
+                           (${report.status.name()} == 'DISMISSED' ? 'Đã đóng' :
+                           (${report.status.name()} == 'WARNED' ? 'Đã cảnh báo' : 'Đã xử lý'))"></span>
+          </p>
+          <p><strong>Ghi chú Admin:</strong></p>
+          <div class="bg-light rounded p-3" th:text="${report.adminNote} ?: 'Chưa có'"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-bold">Hành động</div>
+        <div class="card-body">
+          <p class="text-muted">Admin chỉ xem nội dung khi có báo cáo. Vui lòng ghi chú mọi hành động để dễ truy vết.</p>
+          <form th:action="@{/admin/reports/{id}/warn(id=${report.id})}" method="post" class="mb-3">
+            <label class="form-label">Ghi chú cảnh báo</label>
+            <textarea class="form-control mb-2" name="adminNote" rows="2" placeholder="Ví dụ: Đã cảnh báo không spam."></textarea>
+            <button class="btn btn-warning w-100" type="submit">Gửi cảnh báo</button>
+          </form>
+          <form th:action="@{/admin/reports/{id}/lock(id=${report.id})}" method="post" class="mb-3">
+            <label class="form-label">Ghi chú khóa tài khoản</label>
+            <textarea class="form-control mb-2" name="adminNote" rows="2" placeholder="Lý do khóa tài khoản"></textarea>
+            <button class="btn btn-danger w-100" type="submit">Khóa tài khoản người vi phạm</button>
+          </form>
+          <form th:action="@{/admin/reports/{id}/dismiss(id=${report.id})}" method="post">
+            <label class="form-label">Ghi chú đóng báo cáo</label>
+            <textarea class="form-control mb-2" name="adminNote" rows="2" placeholder="Lý do đóng báo cáo"></textarea>
+            <button class="btn btn-secondary w-100" type="submit">Đóng báo cáo</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4 shadow-sm">
+    <div class="card-header fw-bold">Nội dung lịch bị báo cáo</div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+          <tr>
+            <th>#</th>
+            <th>Tiêu đề</th>
+            <th>Loại</th>
+            <th>Bắt đầu</th>
+            <th>Kết thúc</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="task, idx : ${report.tasks}">
+            <td th:text="${idx.count}"></td>
+            <td th:text="${task.title}"></td>
+            <td>
+              <span th:text="${task.type != null && task.type.name() == 'RECURRING' ? 'Định kỳ' : 'Một lần'}"></span>
+            </td>
+            <td th:text="${task.startTime != null ? #temporals.format(task.startTime, 'HH:mm dd/MM/yyyy') : 'Không xác định'}"></td>
+            <td th:text="${task.endTime != null ? #temporals.format(task.endTime, 'HH:mm dd/MM/yyyy') : 'Không xác định'}"></td>
+          </tr>
+          <tr th:if="${report.tasks.isEmpty()}">
+            <td colspan="5" class="text-center text-muted">Lịch chưa có công việc nào hoặc nội dung đã bị xóa.</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</html>
