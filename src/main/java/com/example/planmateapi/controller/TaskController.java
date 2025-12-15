@@ -31,21 +31,21 @@ public class TaskController {
 
     @Operation(summary = "Tạo một công việc mới (thường hoặc lặp lại)")
     @PostMapping("/api/calendars/{calendarId}/tasks")
-    public ResponseEntity<Void> createTask(
+    public ResponseEntity<TaskResponseDto> createTask(
             @PathVariable Long calendarId,
             @Valid @RequestBody TaskRequestDto request) {
-        taskService.createOrUpdateTask(calendarId, null, request);
-        return new ResponseEntity<>(HttpStatus.CREATED);
+        final TaskResponseDto created = taskService.createOrUpdateTask(calendarId, null, request);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @Operation(summary = "Cập nhật một công việc (có thể chuyển đổi giữa thường và lặp lại)")
     @PutMapping("/api/tasks/{taskId}")
-    public ResponseEntity<Void> updateTask(
+    public ResponseEntity<TaskResponseDto> updateTask(
             @PathVariable Long taskId,
             @RequestParam Long calendarId, // Cần calendarId để xác thực quyền
             @Valid @RequestBody TaskRequestDto request) {
-        taskService.createOrUpdateTask(calendarId, taskId, request);
-        return ResponseEntity.ok().build();
+        final TaskResponseDto updated = taskService.createOrUpdateTask(calendarId, taskId, request);
+        return ResponseEntity.ok(updated);
     }
 
     @Operation(summary = "Xóa một công việc (thường hoặc lặp lại)")
