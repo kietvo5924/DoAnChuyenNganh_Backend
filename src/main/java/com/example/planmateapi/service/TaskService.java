@@ -33,7 +33,7 @@ public class TaskService {
     private final CalendarShareRepository calendarShareRepository;
 
     @Transactional
-    public void createOrUpdateTask(Long calendarId, Long taskId, TaskRequestDto request) {
+    public TaskResponseDto createOrUpdateTask(Long calendarId, Long taskId, TaskRequestDto request) {
         // SỬA LOGIC KIỂM TRA QUYỀN:
         if (!hasPermission(calendarId, PermissionLevel.EDIT)) {
             throw new AccessDeniedException("Bạn không có quyền thêm hoặc sửa công việc trong lịch này.");
@@ -73,7 +73,8 @@ public class TaskService {
             task.setCreatedBy(currentUser); // Vẫn lưu người tạo, nhưng không dùng để check quyền
             task.setTags(tags);
             task.setPreDayNotify(request.isPreDayNotify());
-            taskRepository.save(task);
+            Task saved = taskRepository.save(task);
+            return mapTaskToResponse(saved);
 
         } else {
             // Xử lý cho Recurring Task
@@ -82,7 +83,8 @@ public class TaskService {
                 recurringTask = new RecurringTask();
             } else {
                 recurringTask = recurringTaskRepository.findById(taskId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy công việc lặp lại: " + taskId));
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Không tìm thấy công việc lặp lại: " + taskId));
                 // Logic chuyển đổi: Nếu task cũ là task thường, xóa nó đi
                 taskRepository.deleteById(taskId);
             }
@@ -105,7 +107,8 @@ public class TaskService {
             recurringTask.setCreatedBy(currentUser); // Vẫn lưu người tạo, nhưng không dùng để check quyền
             recurringTask.setTags(tags);
             recurringTask.setPreDayNotify(request.isPreDayNotify());
-            recurringTaskRepository.save(recurringTask);
+            RecurringTask saved = recurringTaskRepository.save(recurringTask);
+            return mapRecurringTaskToResponse(saved);
         }
     }
 
@@ -206,7 +209,8 @@ public class TaskService {
     }
 
     private Set<TagDto.Response> mapTagsToDto(Set<Tag> tags) {
-        if (tags == null) return new HashSet<>();
+        if (tags == null)
+            return new HashSet<>();
         return tags.stream()
                 .map(tag -> new TagDto.Response(tag.getId(), tag.getName(), tag.getColor()))
                 .collect(Collectors.toSet());
@@ -247,7 +251,8 @@ public class TaskService {
      * Nó sẽ tự động tìm lịch mặc định của người dùng và tạo một công việc MỚI.
      */
     @Transactional
-    public CreateTaskResponseDto createSingleTaskFromAi(String title, OffsetDateTime startTime, OffsetDateTime endTime, boolean preDayNotify) {
+    public CreateTaskResponseDto createSingleTaskFromAi(String title, OffsetDateTime startTime, OffsetDateTime endTime,
+            boolean preDayNotify) {
         User currentUser = authenticationService.getCurrentAuthenticatedUser();
 
         // 1. Tìm lịch (calendar) mặc định của người dùng
@@ -275,8 +280,7 @@ public class TaskService {
         String message = String.format("Đã đặt lịch '%s' trên lịch '%s' vào lúc %s.",
                 title,
                 defaultCalendar.getName(),
-                startTime.format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM"))
-        );
+                startTime.format(DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM")));
 
         return new CreateTaskResponseDto(true, message, title, startTime, defaultCalendar.getName());
     }
@@ -284,8 +288,7 @@ public class TaskService {
     @Transactional
     public CreateTaskResponseDto createRecurringTaskFromAi(
             String title, RepeatType repeatType, LocalTime startTime, LocalTime endTime,
-            LocalDate startDate, String repeatDays, int repeatInterval, boolean preDayNotify
-    ) {
+            LocalDate startDate, String repeatDays, int repeatInterval, boolean preDayNotify) {
         User currentUser = authenticationService.getCurrentAuthenticatedUser();
 
         // 1. Tìm lịch default
@@ -314,8 +317,7 @@ public class TaskService {
         String message = String.format("Đã tạo lịch lặp lại '%s' trên lịch '%s' (bắt đầu từ %s).",
                 title,
                 defaultCalendar.getName(),
-                startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-        );
+                startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
 
         return new CreateTaskResponseDto(true, message, title, null, defaultCalendar.getName());
     }
@@ -331,7 +333,8 @@ public class TaskService {
                 .map(Calendar::getId)
                 .toList();
 
-        if (calendarIds.isEmpty()) return "Bạn chưa có lịch nào.";
+        if (calendarIds.isEmpty())
+            return "Bạn chưa có lịch nào.";
 
         List<String> results = new ArrayList<>();
         ZoneOffset vietnamOffset = ZoneOffset.of("+07:00");
@@ -340,11 +343,13 @@ public class TaskService {
 
         // --- 1. TÌM TRONG BẢNG RECURRING TASK (Ưu tiên số 1) ---
         for (Long calId : calendarIds) {
-            List<RecurringTask> rTasks = recurringTaskRepository.findByCalendarIdAndTitleContainingIgnoreCase(calId, keyword);
+            List<RecurringTask> rTasks = recurringTaskRepository.findByCalendarIdAndTitleContainingIgnoreCase(calId,
+                    keyword);
             for (RecurringTask rt : rTasks) {
                 foundAny = true;
                 // FIX: Thêm hiển thị rt.getRepeatDays() để biết lặp vào thứ mấy (VD: "SA,SU")
-                String repeatInfo = String.format("%s (Lặp vào: %s)", rt.getRepeatType(), rt.getRepeatDays() != null ? rt.getRepeatDays() : "Hàng ngày");
+                String repeatInfo = String.format("%s (Lặp vào: %s)", rt.getRepeatType(),
+                        rt.getRepeatDays() != null ? rt.getRepeatDays() : "Hàng ngày");
 
                 results.add(String.format("[ID: %d | LOẠI: RECURRING] - %s \n   -> Chi tiết: %s lúc %s",
                         rt.getId(), rt.getTitle(), repeatInfo, rt.getStartTime()));
@@ -383,9 +388,11 @@ public class TaskService {
         }
     }
 
-    // 3. Hàm sửa (AI gọi sau khi user confirm) - Chỉ cho sửa Title và Thời gian đơn giản
+    // 3. Hàm sửa (AI gọi sau khi user confirm) - Chỉ cho sửa Title và Thời gian đơn
+    // giản
     @Transactional
-    public String editAnyTaskFromAi(Long id, String type, String newTitle, String newStartTimeISO, String newEndTimeISO) {
+    public String editAnyTaskFromAi(Long id, String type, String newTitle, String newStartTimeISO,
+            String newEndTimeISO) {
         try {
             User currentUser = authenticationService.getCurrentAuthenticatedUser();
 
@@ -398,10 +405,13 @@ public class TaskService {
                     return "Bạn không có quyền sửa task này.";
                 }
 
-                if (newTitle != null && !newTitle.isEmpty()) task.setTitle(newTitle);
+                if (newTitle != null && !newTitle.isEmpty())
+                    task.setTitle(newTitle);
                 // Parse ISO 8601 đầy đủ (VD: 2025-11-20T09:00:00+07:00)
-                if (newStartTimeISO != null) task.setStartTime(OffsetDateTime.parse(newStartTimeISO));
-                if (newEndTimeISO != null) task.setEndTime(OffsetDateTime.parse(newEndTimeISO));
+                if (newStartTimeISO != null)
+                    task.setStartTime(OffsetDateTime.parse(newStartTimeISO));
+                if (newEndTimeISO != null)
+                    task.setEndTime(OffsetDateTime.parse(newEndTimeISO));
 
                 taskRepository.save(task);
                 return "Đã cập nhật công việc thường thành công.";
@@ -415,7 +425,8 @@ public class TaskService {
                     return "Bạn không có quyền sửa task này.";
                 }
 
-                if (newTitle != null && !newTitle.isEmpty()) rTask.setTitle(newTitle);
+                if (newTitle != null && !newTitle.isEmpty())
+                    rTask.setTitle(newTitle);
 
                 // Với Task lặp, ta chỉ lấy phần GIỜ (LocalTime) từ chuỗi ISO
                 if (newStartTimeISO != null) {
